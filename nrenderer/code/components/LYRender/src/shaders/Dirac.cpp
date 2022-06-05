@@ -36,7 +36,7 @@ namespace LYPathTracer
         //Vec3 tempdir = onb.local(ray.direction);
         //Vec3 temp = Vec3{ tempdir.x, tempdir.y, 0 - tempdir.z };
         //tempdir.z = 0 - tempdir.z;
-        Vec3 direction = ray.direction - 2 * glm::dot(ray.direction, normal) * normal;
+        Vec3 direction = glm::normalize(ray.direction - 2 * glm::dot(ray.direction, normal) * normal);
 
 
         float pdf = 1 / (2 * PI);

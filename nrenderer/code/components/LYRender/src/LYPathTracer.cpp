@@ -6,6 +6,7 @@
 #include "intersections/intersections.hpp"
 
 #include "glm/gtc/matrix_transform.hpp"
+#include <iostream>
 
 namespace LYPathTracer
 {
@@ -24,7 +25,7 @@ namespace LYPathTracer
                     float x = (float(j)+rx)/float(width);
                     float y = (float(i)+ry)/float(height);
                     auto ray = camera.shoot(x, y);
-                    color += trace(ray, 0);
+                    color += trace(ray, 0, false);
                 }
                 color /= samples;
                 color = gamma(color);
@@ -105,6 +106,73 @@ namespace LYPathTracer
         return { closest->t, v };
     }
 
+
+    RGB LYPathTracerRenderer::trace(const Ray& r, int currDepth, bool in) {
+        if (currDepth == depth) return scene.ambient.constant;
+        auto hitObject = closestHitObject(r);
+        auto [t, emitted] = closestHitLight(r);
+        // hit object
+        if (hitObject && hitObject->t < t) {
+            auto mtlHandle = hitObject->material;
+            //auto 
+            if (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()])) {
+                float F = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+                    ->F_schlick(r.direction, in ? -hitObject->normal : hitObject->normal, in ? 0.66666666 : 1.5);
+                //std::cout << F << std::endl;
+                auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal);
+                auto scatteredRay = scattered.ray;
+                auto attenuation = scattered.attenuation;
+                auto emitted = scattered.emitted;
+                auto next = trace(scatteredRay, currDepth + 1, in);
+                float n_dot_in = glm::dot(in ? -hitObject->normal : hitObject->normal, scatteredRay.direction);
+                float pdf = scattered.pdf;
+                auto result1 = emitted + attenuation * next * n_dot_in / pdf;
+                if (F == 1.f) {
+                    return result1;
+                }
+                else
+                {
+                    auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+                        ->shade_another(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal, in ? 0.66666666 : 1.5);
+                    auto fractRay = refract.ray;
+                    auto fractattenuation = refract.attenuation;
+                    auto fractemitted = refract.emitted;
+                    auto fractnext = trace(fractRay, currDepth + 1, in ? false : true);
+                    float fract_n_dot_in = glm::dot(in ? -hitObject->normal : hitObject->normal, fractRay.direction);
+                    float fractpdf = refract.pdf;
+                    auto result2 = fractemitted + fractattenuation * fractnext * fract_n_dot_in / fractpdf;
+                    return F * result1 + (1 - F) * result2;
+                }
+            }
+            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            auto scatteredRay = scattered.ray;
+            auto attenuation = scattered.attenuation;
+            auto emitted = scattered.emitted;
+            auto next = trace(scatteredRay, currDepth + 1, in);
+            float n_dot_in = glm::dot(hitObject->normal, scatteredRay.direction);
+            float pdf = scattered.pdf;
+            /**
+             * emitted      - Le(p, w_0)
+             * next         - Li(p, w_i)
+             * n_dot_in     - cos<n, w_i>
+             * atteunation  - BRDF
+             * pdf          - p(w)
+             **/
+             //attenuation = Vec3{ 1,1,1 };
+            return emitted + attenuation * next * n_dot_in / pdf;
+        }
+        // 
+        else if (t != FLOAT_INF) {
+            return emitted;
+        }
+        else {
+            return Vec3{ 0 };
+        }
+    }
+
+
+
+
     RGB LYPathTracerRenderer::trace(const Ray& r, int currDepth) {
         if (currDepth == depth) return scene.ambient.constant;
         auto hitObject = closestHitObject(r);
@@ -112,6 +180,11 @@ namespace LYPathTracer
         // hit object
         if (hitObject && hitObject->t < t) {
             auto mtlHandle = hitObject->material;
+            if (mtlHandle.index() == 2) {
+                auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+                    ->shade_another(r, hitObject->hitPoint, hitObject->normal, 1.5);
+
+            }
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
             auto scatteredRay = scattered.ray;
             auto attenuation = scattered.attenuation;

@@ -13,6 +13,7 @@ namespace LYPathTracer
     public:
         Dirac(Material& material, vector<Texture>& textures);
         Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const;
+        
     };
 }
 

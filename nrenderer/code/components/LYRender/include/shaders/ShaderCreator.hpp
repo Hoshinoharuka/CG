@@ -5,6 +5,7 @@
 #include "Shader.hpp"
 #include "Lambertian.hpp"
 #include "Dirac.hpp"
+#include "Insulator.hpp"
 
 namespace LYPathTracer
 {
@@ -20,10 +21,13 @@ namespace LYPathTracer
                 shader = make_shared<Lambertian>(material, t);
                 break;
             case 2:
+                shader = make_shared<Insulator>(material, t);
+                break;
+            case 3:
                 shader = make_shared<Dirac>(material, t);
                 break;
             default:
-                shader = make_shared<Dirac>(material, t);
+                shader = make_shared<Insulator>(material, t);
                 break;
             }
             return shader;
