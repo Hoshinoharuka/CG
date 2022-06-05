@@ -31,12 +31,12 @@ namespace LYPathTracer
         // }
         // direction = glm::normalize(direction);
 
-        Onb onb{ normal };
+        //Onb onb{ normal };
         //Vec3 direction = glm::normalize(onb.local(random));
-        Vec3 tempdir = onb.local(ray.direction);
-        Vec3 temp = Vec3{ tempdir.x, tempdir.y, 0 - tempdir.z };
+        //Vec3 tempdir = onb.local(ray.direction);
+        //Vec3 temp = Vec3{ tempdir.x, tempdir.y, 0 - tempdir.z };
         //tempdir.z = 0 - tempdir.z;
-        Vec3 direction = glm::normalize(onb.un_local(temp));
+        Vec3 direction = ray.direction - 2 * glm::dot(ray.direction, normal) * normal;
 
 
         float pdf = 1 / (2 * PI);
