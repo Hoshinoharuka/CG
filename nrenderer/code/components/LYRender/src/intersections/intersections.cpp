@@ -46,6 +46,7 @@ namespace LYPathTracer::Intersection
             }
             temp = (-b + sqrtDiscriminant) / a;
             if (temp < tMax && temp >= tMin) {
+                //cout << temp << endl;
                 auto hitPoint = ray.at(temp);
                 auto normal = (hitPoint - position)/r;
                 return getHitRecord(temp, hitPoint, normal, s.material);

@@ -117,30 +117,36 @@ namespace LYPathTracer
             //auto 
             if (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()])) {
                 float F = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
-                    ->F_schlick(r.direction, in ? -hitObject->normal : hitObject->normal, in ? 0.66666666 : 1.5);
+                    ->F_schlick(r.direction, in ? -hitObject->normal : hitObject->normal, in ? 1.5 : 0.66666666);
                 //std::cout << F << std::endl;
-                auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal);
+                auto scattered = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+                    ->shade(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal);
                 auto scatteredRay = scattered.ray;
                 auto attenuation = scattered.attenuation;
                 auto emitted = scattered.emitted;
                 auto next = trace(scatteredRay, currDepth + 1, in);
                 float n_dot_in = glm::dot(in ? -hitObject->normal : hitObject->normal, scatteredRay.direction);
+                //cout << n_dot_in << endl;
                 float pdf = scattered.pdf;
                 auto result1 = emitted + attenuation * next * n_dot_in / pdf;
+                //F = 0.5;
+                //cout << F << endl;
                 if (F == 1.f) {
                     return result1;
                 }
                 else
                 {
                     auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
-                        ->shade_another(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal, in ? 0.66666666 : 1.5);
+                        ->shade_another(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal, in ? 1.5 : 0.66666666);
                     auto fractRay = refract.ray;
                     auto fractattenuation = refract.attenuation;
                     auto fractemitted = refract.emitted;
                     auto fractnext = trace(fractRay, currDepth + 1, in ? false : true);
-                    float fract_n_dot_in = glm::dot(in ? -hitObject->normal : hitObject->normal, fractRay.direction);
+                    float fract_n_dot_in = glm::dot(in ? hitObject->normal : -hitObject->normal, fractRay.direction);
+                    //cout << fract_n_dot_in << endl;
                     float fractpdf = refract.pdf;
                     auto result2 = fractemitted + fractattenuation * fractnext * fract_n_dot_in / fractpdf;
+                    //return result2;
                     return F * result1 + (1 - F) * result2;
                 }
             }
@@ -150,6 +156,7 @@ namespace LYPathTracer
             auto emitted = scattered.emitted;
             auto next = trace(scatteredRay, currDepth + 1, in);
             float n_dot_in = glm::dot(hitObject->normal, scatteredRay.direction);
+            //cout << n_dot_in << endl;
             float pdf = scattered.pdf;
             /**
              * emitted      - Le(p, w_0)
