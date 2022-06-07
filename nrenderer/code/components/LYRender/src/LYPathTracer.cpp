@@ -151,7 +151,7 @@ namespace LYPathTracer
                     float fract_n_dot_in = glm::dot(in ? hitObject->normal : -hitObject->normal, fractRay.direction);
                     //fract_n_dot_in = 1.f;
                     //cout << fract_n_dot_in << endl;
-                    fract_n_dot_in *= 0.4f;
+                    fract_n_dot_in *= 0.5f;
                     float fractpdf = refract.pdf;
                     auto result2 = fractemitted + fractattenuation * fractnext * fract_n_dot_in / fractpdf;
                     //return result2;
