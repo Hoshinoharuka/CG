@@ -116,6 +116,7 @@ namespace LYPathTracer
             auto mtlHandle = hitObject->material;
             //auto 
             if (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()])) {
+                //bool flag = glm::dot(r.direction, hitObject->normal) >= 0 ? true : false;
                 float F = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
                     ->F_schlick(r.direction, in ? -hitObject->normal : hitObject->normal, in ? 1.5 : 0.66666666);
                 //std::cout << F << std::endl;
@@ -129,8 +130,10 @@ namespace LYPathTracer
                 //cout << n_dot_in << endl;
                 float pdf = scattered.pdf;
                 auto result1 = emitted + attenuation * next * n_dot_in / pdf;
+                
                 //F = 0.5;
                 //cout << F << endl;
+                
                 if (F == 1.f) {
                     return result1;
                 }
@@ -139,15 +142,22 @@ namespace LYPathTracer
                     auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
                         ->shade_another(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal, in ? 1.5 : 0.66666666);
                     auto fractRay = refract.ray;
+                    if (fractRay.direction.x == 0.f && fractRay.direction.y == 0.f && fractRay.direction.z == 0.f) {
+                        return result1;
+                    }
                     auto fractattenuation = refract.attenuation;
                     auto fractemitted = refract.emitted;
                     auto fractnext = trace(fractRay, currDepth + 1, in ? false : true);
                     float fract_n_dot_in = glm::dot(in ? hitObject->normal : -hitObject->normal, fractRay.direction);
+                    //fract_n_dot_in = 1.f;
                     //cout << fract_n_dot_in << endl;
+                    fract_n_dot_in *= 0.4f;
                     float fractpdf = refract.pdf;
                     auto result2 = fractemitted + fractattenuation * fractnext * fract_n_dot_in / fractpdf;
                     //return result2;
+                    //cout << 1 - F << endl;
                     return F * result1 + (1 - F) * result2;
+                    //return 0.5f * result1 + 0.5f * result2;
                 }
             }
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);

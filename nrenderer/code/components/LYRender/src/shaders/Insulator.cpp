@@ -42,13 +42,13 @@ namespace LYPathTracer
     }
     Scattered Insulator::shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const {
         Vec3 origin = hitPoint;
-        Vec3 random = defaultSamplerInstance<HemiSphere>().sample3d();
+        //Vec3 random = defaultSamplerInstance<HemiSphere>().sample3d();
         Vec3 direction = glm::normalize(ray.direction - 2 * glm::dot(ray.direction, normal) * normal);
         float pdf = 1 / (2 * PI);
         auto attenuation = albedo / PI;
         Ray temp{ origin, direction };
         return {
-            Ray{temp.at(-0.5f), direction},
+            Ray{temp.at(0.01f), direction},
             attenuation,
             Vec3{0},
             pdf
@@ -56,18 +56,30 @@ namespace LYPathTracer
     }
     Scattered Insulator::shade_another(const Ray& ray, const Vec3& hitPoint, const Vec3& normal, float eta) const {
         Vec3 origin = hitPoint;
-        Vec3 random = defaultSamplerInstance<HemiSphere>().sample3d();
+        //Vec3 random = defaultSamplerInstance<HemiSphere>().sample3d();
         float cos_in = glm::dot(ray.direction, normal);
         float sin_in2 = 1.f - cos_in * cos_in;
         float sin_tn2 = eta * eta * sin_in2;
         float cos_tn2 = 1.f - sin_tn2;
+        if (cos_tn2 < 0) {
+            Vec3 direction = Vec3{ 0.f, 0.f, 0.f };
+            float pdf = 1 / (2 * PI);
+            auto attenuation = albedo / PI;
+            Ray temp{ origin, direction };
+            return {
+            Ray{temp.at(0.1f), direction},
+            attenuation,
+            Vec3{0},
+            pdf
+            };
+        }
         float cos_tn = sqrt(cos_tn2);
         Vec3 direction = glm::normalize(eta * ray.direction - (eta * cos_in + cos_tn) * normal);
         float pdf = 1 / (2 * PI);
         auto attenuation = albedo / PI;
         Ray temp{ origin, direction };
         return {
-            Ray{temp.at(0.5f), direction},
+            Ray{temp.at(0.1f), direction},
             attenuation,
             Vec3{0},
             pdf
