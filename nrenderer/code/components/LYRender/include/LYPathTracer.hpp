@@ -9,7 +9,10 @@
 
 #include "shaders/ShaderCreator.hpp"
 
+#include "kdTree.hpp"
+
 #include <tuple>
+#include <vector>
 namespace LYPathTracer
 {
     using namespace NRenderer;
@@ -31,6 +34,20 @@ namespace LYPathTracer
         SCam camera;
 
         vector<SharedShader> shaderPrograms;
+
+
+        //---photon mapping
+        KdTreeNode* root;
+        vector<ViewPoint> viewPoints;
+        int photonNum = 100000;
+        Vec3* pic;
+        int* sampleCount;
+        int round = 10;
+        double energy;
+        double lightStrength;
+        float photonR = 4;
+        float findR = 3.f;  // find near photon r(?
+
     public:
         LYPathTracerRenderer(SharedScene spScene)
             : spScene               (spScene)
@@ -41,6 +58,15 @@ namespace LYPathTracer
             height = scene.renderOption.height;
             depth = scene.renderOption.depth;
             samples = scene.renderOption.samplesPerPixel;
+
+            lightStrength == 1.0 / log(samples);
+            Vec3 v{ 0,0,0 };
+            pic = new Vec3[height * width]{};
+            sampleCount = new int[height * width];
+            for (int i = 0; i < height * width; i++) {
+                pic[i] = v;
+                sampleCount[i] = 0;
+            }
         }
         ~LYPathTracerRenderer() = default;
 
@@ -50,12 +76,37 @@ namespace LYPathTracer
 
     private:
         void renderTask(RGBA* pixels, int width, int height, int off, int step);
+        void photonTask(RGBA* pixels, int width, int height, int off, int step);
 
         RGB gamma(const RGB& rgb);
         RGB trace(const Ray& ray, int currDepth, bool in);
         RGB trace(const Ray& ray, int currDepth);
         HitRecord closestHitObject(const Ray& r);
         tuple<float, Vec3> closestHitLight(const Ray& r);
+
+        //----photon mapping
+        void rayTracing(const Ray& r, int currDepth, float lambda, int x, int y);
+        Vec3 getMax(const Vec3& v1, const Vec3& v2);
+        Vec3 getMin(const Vec3& v1, const Vec3& v2);
+        void photonTracing(const Ray& ray, Vec3 rayColor, int currDepth);
+        void buildTree(KdTreeNode*& node, vector<ViewPoint>& list, int l = -1, int r = -1, int dim = 0);
+        void releaseTree(KdTreeNode* &node);
+        void findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r);
+
+        template<int dim>
+        class ViewPointCompare {
+        public:
+            bool operator()(const ViewPoint& p1, const ViewPoint& p2) {
+                switch (dim) {
+                case 0:
+                    return p1.pos.x < p2.pos.x;
+                case 1:
+                    return p1.pos.y < p2.pos.y;
+                case 2:
+                    return p1.pos.z < p2.pos.z;
+                }
+            }
+        };
     };
 }
 

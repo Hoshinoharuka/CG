@@ -6,10 +6,12 @@
 #include "intersections/intersections.hpp"
 
 #include "glm/gtc/matrix_transform.hpp"
+#include "Onb.hpp"
 #include <iostream>
 
 namespace LYPathTracer
 {
+    using namespace std;
     RGB LYPathTracerRenderer::gamma(const RGB& rgb) {
         return glm::sqrt(rgb);
     }
@@ -34,6 +36,23 @@ namespace LYPathTracer
         }
     }
 
+    void LYPathTracerRenderer::photonTask(RGBA* pixels, int width, int height, int off, int step) {
+        // not really understand ,directly copy, should be updated!!
+        for (int i = 0; i < photonNum; i += step) {
+            auto r1 = defaultSamplerInstance<UniformInSquare>().sample2d();
+            auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
+            Vec3 norm{ 0,0,-1 };
+            Onb onb{ norm };
+            Vec3 rDir = glm::normalize(onb.local(r2));
+            Vec3 rPos = scene.areaLightBuffer.begin()->position;
+            rPos.x = rPos.x - 60.f + r1.x * 60.f;
+            rPos.y = rPos.y - 60.f + r1.y * 60.f;
+            Vec3 color = scene.areaLightBuffer.begin()->radiance;
+            Ray ray = Ray(rPos, rDir);
+            photonTracing(ray, color, 0);
+        }
+    }
+
     auto LYPathTracerRenderer::render() -> RenderResult {
         // shaders
         shaderPrograms.clear();
@@ -48,15 +67,49 @@ namespace LYPathTracer
         VertexTransformer vertexTransformer{};
         vertexTransformer.exec(spScene);
 
-        const auto taskNums = 8;
-        thread t[taskNums];
-        for (int i=0; i < taskNums; i++) {
-            t[i] = thread(&LYPathTracerRenderer::renderTask,
-                this, pixels, width, height, i, taskNums);
+        const auto taskNums = 12;
+        energy = 1.f / log(samples);
+
+        for (int k = 0; k < samples; k++) {
+            Vec3 v{ 0,0,0 };
+            for (int i = 0; i < height * width; i++) {
+                pic[i] = v;
+                sampleCount[i] = 0;
+            }
+            thread* t = new thread[taskNums];
+            for (int i = 0; i < taskNums; i++) {
+                t[i] = thread(&LYPathTracerRenderer::renderTask,
+                    this, pixels, width, height, i, taskNums);
+            }
+            for (int i = 0; i < taskNums; i++) {
+                t[i].join();
+            }
+            delete[] t;
+
+            buildTree(root, viewPoints);
+            t = new thread[taskNums];
+            for (int i = 0; i < taskNums; i++) {
+                t[i].join();
+            }
+            delete[] t;
+
+            energy /= 0.9f;
+            findR *= 0.9f;
+            releaseTree(root);
+            // not really understand but copy
+            for (int i = 0; i < height; i++) {
+                for (int j = 0; j < width; j++) {
+                    Vec3 c = gamma(pic[i * width + j]);
+                    Vec4 ori = pixels[(height - 1 - i) * width + j];
+                    c = { c.x + ori.x,c.y + ori.y,c.z + ori.z };
+                    pixels[(height - 1 - i) * width + j] = { c,1 };
+                }
+            }
+
         }
-        for(int i=0; i < taskNums; i++) {
-            t[i].join();
-        }
+ 
+        
+        
         getServer().logger.log("Done...");
         return {pixels, width, height};
     }
@@ -226,5 +279,95 @@ namespace LYPathTracer
         else {
             return Vec3{0};
         }
+    }
+
+    Vec3 LYPathTracerRenderer::getMax(const Vec3& v1, const Vec3& v2) {
+        return Vec3(max(v1.x, v2.x), max(v1.y, v2.y), max(v1.z, v2.z));
+    }
+
+    Vec3 LYPathTracerRenderer::getMin(const Vec3& v1, const Vec3& v2) {
+        return Vec3(min(v1.x, v2.x), min(v1.y, v2.y), min(v1.z, v2.z));
+    }
+
+    void LYPathTracerRenderer::buildTree(KdTreeNode*& node, vector<ViewPoint>& list, int l, int r, int dim) {
+        if (l == -1 && r == -1) {
+            l = 0;
+            r = list.size();
+        }
+        if (l > r) {
+            return;
+        }
+        int mid = (l + r) >> 1;
+        switch (dim) {
+        case 0:
+            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());
+            break;
+        case 1:
+            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<1>());
+            break;
+        case 2:
+            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<2>());
+            break;
+        }
+
+        node = new KdTreeNode();
+        node->viewpoint = list[mid];
+        node->left = node->right = NULL;
+        node->dim = dim;
+        node->bdmax = node->viewpoint.pos;
+        node->bdmin = node->viewpoint.pos;
+        buildTree(node->left, list, l, mid, (dim + 1) % 3);
+        if (node->left) {
+            node->bdmax = getMax(node->bdmax, node->left->bdmax);
+            node->bdmin = getMin(node->bdmin, node->left->bdmin);
+        }
+        buildTree(node->right, list, mid + 1, r, (dim + 1) % 3);
+        if (node->right) {
+            node->bdmax = getMax(node->bdmax, node->right->bdmax);
+            node->bdmin = getMin(node->bdmin, node->right->bdmin);
+        }
+
+    }
+
+    void LYPathTracerRenderer::releaseTree(KdTreeNode*& node) {
+        if (!node)return;
+        releaseTree(node->left);
+        releaseTree(node->right);
+        delete node;
+    }
+    
+    void LYPathTracerRenderer::findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r) {
+        double dx, dy, dz;
+        if (pos.x <= node->bdmax.x && pos.x >= node->bdmin.x) {
+            dx = 0;
+        }
+        else {
+            dx = min(abs(pos.x - node->bdmax.x), abs(pos.x - node->bdmin.x));
+        }
+        if (pos.y <= node->bdmax.y && pos.y >= node->bdmin.y) {
+            dy = 0;
+        }
+        else {
+            dy = min(abs(pos.y - node->bdmax.y), abs(pos.y - node->bdmin.y));
+        }
+        if (pos.z <= node->bdmax.z && pos.z >= node->bdmin.z) {
+            dz = 0;
+        }
+        else {
+            dz = min(abs(pos.z - node->bdmax.z), abs(pos.z - node->bdmin.z));
+        }
+        if (dx * dx + dy * dy + dz * dz > r * r) {
+            return;
+        }
+        if ((node->viewpoint.pos - pos).length() <= r) {
+            result.push_back(&(node->viewpoint));
+        }
+        if (node->left) {
+            findTree(node->left, result, pos, r);
+        }
+        if (node->right) {
+            findTree(node->right, result, pos, r);
+        }
+
     }
 }
