@@ -159,6 +159,19 @@ namespace LYPathTracer
         return { closest->t, v };
     }
 
+    tuple<HitRecord, Vec3> LYPathTracerRenderer::closestHitLightpm(const Ray& r) {
+        Vec3 v = {};
+        HitRecord closest = getHitRecord(FLOAT_INF, {}, {}, {});
+        for (auto& a : scene.areaLightBuffer) {
+            auto hitRecord = Intersection::xAreaLight(r, a, 0.000001, closest->t);
+            if (hitRecord && closest->t > hitRecord->t) {
+                closest = hitRecord;
+                v = a.radiance;
+            }
+        }
+        return { closest, v };
+    }
+
 
     RGB LYPathTracerRenderer::trace(const Ray& r, int currDepth, bool in) {
         if (currDepth == depth) return scene.ambient.constant;
@@ -281,6 +294,60 @@ namespace LYPathTracer
         }
     }
 
+    void LYPathTracerRenderer::rayTracing(const Ray& r, int currDepth, float lambda, int x, int y) {
+        if (lambda<1e-9 || currDepth>=depth) {
+            return;
+        }
+        auto hitObject = closestHitObject(r);
+        auto [hitLight, emitted] = closestHitLightpm(r);
+        if (hitObject && hitObject->t < hitLight->t) {
+            auto mtlHandle = hitObject->material;
+            if (mtlHandle.index() == 2) {
+                auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+                    ->shade_another(r, hitObject->hitPoint, hitObject->normal, 1.5);
+            }
+            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            mtx.lock();
+            viewPoints.push_back(ViewPoint(hitObject->hitPoint,    
+                hitObject->normal,      
+                scattered.attenuation,  // color
+                lambda * scattered.pdf,    // strength
+                x, y));
+            mtx.unlock();
+        }
+        else if (hitLight->t != FLOAT_INF) {
+            mtx.lock();
+            viewPoints.push_back(ViewPoint(hitLight->hitPoint,
+                hitLight->normal,
+                emitted,
+                lambda,
+                x,
+                y));
+            mtx.unlock();
+        }
+    }
+
+    void LYPathTracerRenderer::photonTracing(const Ray& r, Vec3 rColor, int currDepth) {
+        if (currDepth >= depth) {
+            return;
+        }
+        auto hitObject = closestHitObject(r);
+        auto [hitLight, emitted] = closestHitLightpm(r);
+        if (hitObject && hitObject->t < hitLight->t) {
+            auto mtlHandle = hitObject->material;
+            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            if (1) {
+                // Diffuse reflection
+            }
+            else {
+                //refraction?
+                return;
+            }
+
+        }
+        
+    }
+
     Vec3 LYPathTracerRenderer::getMax(const Vec3& v1, const Vec3& v2) {
         return Vec3(max(v1.x, v2.x), max(v1.y, v2.y), max(v1.z, v2.z));
     }
@@ -337,6 +404,7 @@ namespace LYPathTracer
     }
     
     void LYPathTracerRenderer::findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r) {
+        // not add max nearest num!
         double dx, dy, dz;
         if (pos.x <= node->bdmax.x && pos.x >= node->bdmin.x) {
             dx = 0;

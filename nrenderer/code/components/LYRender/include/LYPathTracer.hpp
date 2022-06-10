@@ -10,7 +10,7 @@
 #include "shaders/ShaderCreator.hpp"
 
 #include "kdTree.hpp"
-
+#include <mutex>
 #include <tuple>
 #include <vector>
 namespace LYPathTracer
@@ -37,6 +37,7 @@ namespace LYPathTracer
 
 
         //---photon mapping
+        mutex mtx;
         KdTreeNode* root;
         vector<ViewPoint> viewPoints;
         int photonNum = 100000;
@@ -86,9 +87,10 @@ namespace LYPathTracer
 
         //----photon mapping
         void rayTracing(const Ray& r, int currDepth, float lambda, int x, int y);
+        tuple<HitRecord, Vec3> closestHitLightpm(const Ray& r);
         Vec3 getMax(const Vec3& v1, const Vec3& v2);
         Vec3 getMin(const Vec3& v1, const Vec3& v2);
-        void photonTracing(const Ray& ray, Vec3 rayColor, int currDepth);
+        void photonTracing(const Ray& r, Vec3 rColor, int currDepth);
         void buildTree(KdTreeNode*& node, vector<ViewPoint>& list, int l = -1, int r = -1, int dim = 0);
         void releaseTree(KdTreeNode* &node);
         void findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r);
