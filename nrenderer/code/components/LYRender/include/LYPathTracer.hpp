@@ -49,7 +49,7 @@ namespace LYPathTracer
         mutex mtx;
         KdTreeNode* root;
         vector<ViewPoint> viewPoints;
-        int photonNum = 100000;
+        int photonNum = 10000;
         Vec3* pic;
         int* sampleCount;
         int round = 10;

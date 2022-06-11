@@ -17,6 +17,7 @@ namespace LYPathTracer
     }
 
     void LYPathTracerRenderer::renderTask(RGBA* pixels, int width, int height, int off, int step) {
+        /*
         for(int i=off; i<height; i+=step) {
             for (int j=0; j<width; j++) {
                 //Vec3 color{0, 0, 0};
@@ -40,24 +41,56 @@ namespace LYPathTracer
                 auto ray = camera.shoot(x, y);
                 rayTracing(ray, 0, energy, i, j);
             }
-        }
-    }
-
-    void LYPathTracerRenderer::photonTask(RGBA* pixels, int width, int height, int off, int step) {
-        // not really understand ,directly copy, should be updated!!
-        for (int i = off; i < photonNum; i += step) {
+        }*/
+        for (int i = off; i < photonNum; i++) {
             auto r1 = defaultSamplerInstance<UniformInSquare>().sample2d();
             auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
             Vec3 norm{ 0,0,-1 };
             Onb onb{ norm };
             Vec3 rDir = glm::normalize(onb.local(r2));
             Vec3 rPos = scene.areaLightBuffer.begin()->position;
-            rPos.x = rPos.x - 60.f + r1.x * 60.f;
-            rPos.y = rPos.y - 60.f + r1.y * 60.f;
+            rPos.x = rPos.x - 60.f + (r1.x) * 60.f;
+            rPos.y = rPos.y - 60.f + (r1.y) * 60.f;
             Vec3 color = scene.areaLightBuffer.begin()->radiance;
             //cout << "x:" << color.x << "y:" << color.y << "z:" << color.z << endl;
             Ray ray = Ray(rPos, rDir);
-            photonTracing(ray, color, 0);
+            rayTracing(ray, 0, energy, 0, 0);
+        }
+
+    }
+
+    void LYPathTracerRenderer::photonTask(RGBA* pixels, int width, int height, int off, int step) {
+        // not really understand ,directly copy, should be updated!!
+        for (int i = off; i < height; i += step) {
+            for (int j = 0; j < width; j++) {
+                //Vec3 color{0, 0, 0};
+                //for (int k=0; k < samples; k++) {
+                //    auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
+                //    float rx = r.x;
+                //    float ry = r.y;
+                //    float x = (float(j)+rx)/float(width);
+                //    float y = (float(i)+ry)/float(height);
+                //    auto ray = camera.shoot(x, y);
+                //    color += trace(ray, 0, false);
+                //}
+                //color /= samples;
+                //color = gamma(color);
+                //pixels[(height-i-1)*width+j] = {color, 1};
+                for (int k = 0; k < samples; k++)
+                {
+                    auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
+                    float rx = r.x;
+                    float ry = r.y;
+                    float x = (float(j)+rx)/float(width);
+                    float y = (float(i)+ry)/float(height);
+                    auto ray = camera.shoot(x, y);
+                    Vec3 color = scene.areaLightBuffer.begin()->radiance;
+                    //cout << "x:" << color.x << "y:" << color.y << "z:" << color.z << endl;
+                    //Ray ray = Ray(rPos, rDir);
+                    photonTracing(ray, color, 0);
+                }
+                
+            }
         }
     }
 
@@ -85,13 +118,9 @@ namespace LYPathTracer
                 sampleCount[i] = 0;
             }
             thread* t = new thread[taskNums];
-            for (int i = 0; i < taskNums; i++) {
-                t[i] = thread(&LYPathTracerRenderer::renderTask,
-                    this, pixels, width, height, i, taskNums);
-            }
-            for (int i = 0; i < taskNums; i++) {
-                t[i].join();
-            }
+            t[0] = thread(&LYPathTracerRenderer::renderTask,
+                this, pixels, width, height, 0, taskNums);
+            t[0].join();
             delete[] t;
 
             buildTree(root, viewPoints);
@@ -114,7 +143,7 @@ namespace LYPathTracer
                     Vec3 c = gamma(pic[i * width + j]);
                     Vec4 ori = pixels[(height - 1 - i) * width + j];
                     c = { c.x + ori.x,c.y + ori.y,c.z + ori.z };
-                    pixels[(height - 1 - i) * width + j] = { c,1 };
+                    pixels[(height - 1 - i) * width + j] = { c/((float)samples),1.f };
                 }
             }
 
@@ -352,7 +381,7 @@ namespace LYPathTracer
                 vector<ViewPoint*> res;
                 findTree(root, res, hitObject->hitPoint, findR);
                 for (auto &p:res) {
-                    if (glm::dot(hitObject->normal, r.direction) > 1e-3) {
+                    if ((glm::dot(hitObject->normal,(r.direction))) > 1e-3) {
                         float dis = glm::distance(p->pos, hitObject->hitPoint);
                         float t = (findR - dis) / findR;
                         Vec3 inc = { rColor.x * p->color.x,rColor.y * p->color.y ,rColor.z * p->color.z };
