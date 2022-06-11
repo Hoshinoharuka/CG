@@ -19,26 +19,33 @@ namespace LYPathTracer
     void LYPathTracerRenderer::renderTask(RGBA* pixels, int width, int height, int off, int step) {
         for(int i=off; i<height; i+=step) {
             for (int j=0; j<width; j++) {
-                Vec3 color{0, 0, 0};
-                for (int k=0; k < samples; k++) {
-                    auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
-                    float rx = r.x;
-                    float ry = r.y;
-                    float x = (float(j)+rx)/float(width);
-                    float y = (float(i)+ry)/float(height);
-                    auto ray = camera.shoot(x, y);
-                    color += trace(ray, 0, false);
-                }
-                color /= samples;
-                color = gamma(color);
-                pixels[(height-i-1)*width+j] = {color, 1};
+                //Vec3 color{0, 0, 0};
+                //for (int k=0; k < samples; k++) {
+                //    auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
+                //    float rx = r.x;
+                //    float ry = r.y;
+                //    float x = (float(j)+rx)/float(width);
+                //    float y = (float(i)+ry)/float(height);
+                //    auto ray = camera.shoot(x, y);
+                //    color += trace(ray, 0, false);
+                //}
+                //color /= samples;
+                //color = gamma(color);
+                //pixels[(height-i-1)*width+j] = {color, 1};
+                auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
+                float rx = r.x;
+                float ry = r.y;
+                float x = (float(j)+rx)/float(width);
+                float y = (float(i)+ry)/float(height);
+                auto ray = camera.shoot(x, y);
+                rayTracing(ray, 0, energy, i, j);
             }
         }
     }
 
     void LYPathTracerRenderer::photonTask(RGBA* pixels, int width, int height, int off, int step) {
         // not really understand ,directly copy, should be updated!!
-        for (int i = 0; i < photonNum; i += step) {
+        for (int i = off; i < photonNum; i += step) {
             auto r1 = defaultSamplerInstance<UniformInSquare>().sample2d();
             auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
             Vec3 norm{ 0,0,-1 };
@@ -67,7 +74,7 @@ namespace LYPathTracer
         VertexTransformer vertexTransformer{};
         vertexTransformer.exec(spScene);
 
-        const auto taskNums = 12;
+        const auto taskNums = 8;
         energy = 1.f / log(samples);
 
         for (int k = 0; k < samples; k++) {
@@ -89,6 +96,10 @@ namespace LYPathTracer
             buildTree(root, viewPoints);
             t = new thread[taskNums];
             for (int i = 0; i < taskNums; i++) {
+                t[i] = thread(&LYPathTracerRenderer::photonTask,
+                    this, pixels, width, height, i, taskNums);
+            }
+            for (int i = 0; i < taskNums; i++) {
                 t[i].join();
             }
             delete[] t;
@@ -108,8 +119,6 @@ namespace LYPathTracer
 
         }
  
-        
-        
         getServer().logger.log("Done...");
         return {pixels, width, height};
     }
@@ -302,14 +311,15 @@ namespace LYPathTracer
         auto [hitLight, emitted] = closestHitLightpm(r);
         if (hitObject && hitObject->t < hitLight->t) {
             auto mtlHandle = hitObject->material;
-            if (mtlHandle.index() == 2) {
-                auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
-                    ->shade_another(r, hitObject->hitPoint, hitObject->normal, 1.5);
-            }
+            // not understand?
+            //if (mtlHandle.index() == 2) {
+            //    auto refract = (dynamic_pointer_cast<Insulator>(shaderPrograms[mtlHandle.index()]))
+            //        ->shade_another(r, hitObject->hitPoint, hitObject->normal, 1.5);
+            //}
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
             mtx.lock();
             viewPoints.push_back(ViewPoint(hitObject->hitPoint,    
-                hitObject->normal,      
+                hitObject->normal,       
                 scattered.attenuation,  // color
                 lambda * scattered.pdf,    // strength
                 x, y));
@@ -338,6 +348,24 @@ namespace LYPathTracer
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
             if (1) {
                 // Diffuse reflection
+                vector<const ViewPoint*> res;
+                findTree(root, res, hitObject->hitPoint, findR);
+                for (auto &p:res) {
+                    if (glm::dot(hitObject->normal, r.direction) > 1e-3) {
+                        float dis = glm::distance(p->pos, hitObject->hitPoint);
+                        float t = (findR - dis) / findR;
+                        Vec3 inc = rColor * p->color;
+                        inc *= t * t * lightStrength * p->strength;
+                        int px = p->x;
+                        int py = p->y;
+                        mtx.lock();
+                        pic[px * width + py].x += inc.x;
+                        pic[px * width + py].y += inc.y;
+                        pic[px * width + py].z += inc.z;
+                        mtx.unlock();
+                    }
+                }
+                photonTracing(scattered.ray, scattered.attenuation * rColor, currDepth + 1);
             }
             else {
                 //refraction?
@@ -364,7 +392,7 @@ namespace LYPathTracer
         if (l > r) {
             return;
         }
-        int mid = (l + r) >> 1;
+        int mid = (l + r)/2;
         switch (dim) {
         case 0:
             nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());

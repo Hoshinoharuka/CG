@@ -9,7 +9,7 @@
 
 #include "shaders/ShaderCreator.hpp"
 
-#include "kdTree.hpp"
+#include "ViewPoint.hpp"
 #include <mutex>
 #include <tuple>
 #include <vector>
@@ -22,6 +22,15 @@ namespace LYPathTracer
     {
     public:
     private:
+        struct KdTreeNode {
+        public:
+            ViewPoint viewpoint;
+            KdTreeNode* left;
+            KdTreeNode* right;
+            int dim;
+            Vec3 bdmax;
+            Vec3 bdmin;
+        };
         SharedScene spScene;
         Scene& scene;
 
@@ -40,7 +49,7 @@ namespace LYPathTracer
         mutex mtx;
         KdTreeNode* root;
         vector<ViewPoint> viewPoints;
-        int photonNum = 100000;
+        int photonNum = 10000;
         Vec3* pic;
         int* sampleCount;
         int round = 10;
@@ -59,6 +68,8 @@ namespace LYPathTracer
             height = scene.renderOption.height;
             depth = scene.renderOption.depth;
             samples = scene.renderOption.samplesPerPixel;
+
+            root = new KdTreeNode();
 
             lightStrength == 1.0 / log(samples);
             Vec3 v{ 0,0,0 };

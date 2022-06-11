@@ -1,4 +1,4 @@
-#include "kdTree.hpp"
+#include "ViewPoint.hpp"
 
 namespace LYPathTracer {
 	ViewPoint::ViewPoint(glm::vec3 p, glm::vec3 n, glm::vec3 c, float stgh, int x, int y) {

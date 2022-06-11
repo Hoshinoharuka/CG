@@ -1,6 +1,6 @@
 #pragma once
-#ifndef __KDTREE_HPP__
-#define __KDTREE_HPP__
+#ifndef __VIEWPOINT_HPP__
+#define __VIEWPOINT_HPP__
 #include "geometry/vec.hpp"
 namespace LYPathTracer {
 	using namespace std;
@@ -19,14 +19,6 @@ namespace LYPathTracer {
 		
 	};
 
-	class KdTreeNode {
-	public:
-		ViewPoint viewpoint;
-		KdTreeNode* left;
-		KdTreeNode* right;
-		int dim;
-		glm::vec3 bdmax;
-		glm::vec3 bdmin;
-	};
+
 }
 #endif
