@@ -104,7 +104,7 @@ namespace LYPathTracer
         void photonTracing(const Ray& r, Vec3 rColor, int currDepth);
         void buildTree(KdTreeNode*& node, vector<ViewPoint>& list, int l = -1, int r = -1, int dim = 0);
         void releaseTree(KdTreeNode* &node);
-        void findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r);
+        void findTree(KdTreeNode* node, vector<ViewPoint*>& result, const Vec3& pos, double r);
 
         template<int dim>
         class ViewPointCompare {

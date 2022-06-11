@@ -348,14 +348,14 @@ namespace LYPathTracer
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
             if (1) {
                 // Diffuse reflection
-                vector<const ViewPoint*> res;
+                vector<ViewPoint*> res;
                 findTree(root, res, hitObject->hitPoint, findR);
                 for (auto &p:res) {
                     if (glm::dot(hitObject->normal, r.direction) > 1e-3) {
                         float dis = glm::distance(p->pos, hitObject->hitPoint);
                         float t = (findR - dis) / findR;
                         Vec3 inc = rColor * p->color;
-                        inc *= t * t * lightStrength * p->strength;
+                        inc *= (t * t * lightStrength * p->strength);
                         int px = p->x;
                         int py = p->y;
                         mtx.lock();
@@ -389,20 +389,20 @@ namespace LYPathTracer
             l = 0;
             r = list.size();
         }
-        if (l > r) {
+        if (l >= r) {
             return;
         }
-        int mid = (l + r)/2;
+        int mid = (l + r) / 2;
         switch (dim) {
         case 0:
             nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());
-            break;
+            //break;
         case 1:
             nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<1>());
-            break;
+            //break;
         case 2:
             nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<2>());
-            break;
+            //break;
         }
 
         node = new KdTreeNode();
@@ -431,7 +431,7 @@ namespace LYPathTracer
         delete node;
     }
     
-    void LYPathTracerRenderer::findTree(KdTreeNode* node, vector<const ViewPoint*>& result, const Vec3& pos, double r) {
+    void LYPathTracerRenderer::findTree(KdTreeNode* node, vector<ViewPoint*>& result, const Vec3& pos, double r) {
         // not add max nearest num!
         double dx, dy, dz;
         if (pos.x <= node->bdmax.x && pos.x >= node->bdmin.x) {
@@ -455,7 +455,7 @@ namespace LYPathTracer
         if (dx * dx + dy * dy + dz * dz > r * r) {
             return;
         }
-        if ((node->viewpoint.pos - pos).length() <= r) {
+        if (glm::distance(node->viewpoint.pos, pos) <= r) {
             result.push_back(&(node->viewpoint));
         }
         if (node->left) {
