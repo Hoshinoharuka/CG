@@ -49,7 +49,7 @@ namespace LYPathTracer
         mutex mtx;
         KdTreeNode* root;
         vector<ViewPoint> viewPoints;
-        int photonNum = 10000;
+        int photonNum = 100000;
         Vec3* pic;
         int* sampleCount;
         int round = 10;
@@ -71,7 +71,7 @@ namespace LYPathTracer
 
             root = new KdTreeNode();
 
-            lightStrength == 1.0 / log(samples);
+            lightStrength = 1.0 / log(samples);
             Vec3 v{ 0,0,0 };
             pic = new Vec3[height * width]{};
             sampleCount = new int[height * width];

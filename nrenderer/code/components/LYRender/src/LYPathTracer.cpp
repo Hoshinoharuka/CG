@@ -55,6 +55,7 @@ namespace LYPathTracer
             rPos.x = rPos.x - 60.f + r1.x * 60.f;
             rPos.y = rPos.y - 60.f + r1.y * 60.f;
             Vec3 color = scene.areaLightBuffer.begin()->radiance;
+            //cout << "x:" << color.x << "y:" << color.y << "z:" << color.z << endl;
             Ray ray = Ray(rPos, rDir);
             photonTracing(ray, color, 0);
         }
@@ -354,14 +355,22 @@ namespace LYPathTracer
                     if (glm::dot(hitObject->normal, r.direction) > 1e-3) {
                         float dis = glm::distance(p->pos, hitObject->hitPoint);
                         float t = (findR - dis) / findR;
-                        Vec3 inc = rColor * p->color;
-                        inc *= (t * t * lightStrength * p->strength);
+                        Vec3 inc = { rColor.x * p->color.x,rColor.y * p->color.y ,rColor.z * p->color.z };
+                        //Vec3 inc = rColor * p->color;
+                        //cout << p->color.x << "       " << p->color.y << "       " << p->color.z << endl;
+                        //cout << "t:" << t << "str:" << p->strength << endl;
+                        float factor = t * t * lightStrength * p->strength;
+                        inc *= factor;
+                        //cout << "lightStrength" << lightStrength << endl;
+                        //cout << inc.x << "       " << inc.y << "       " << inc.z << endl;
                         int px = p->x;
                         int py = p->y;
                         mtx.lock();
-                        pic[px * width + py].x += inc.x;
-                        pic[px * width + py].y += inc.y;
-                        pic[px * width + py].z += inc.z;
+                        int index = px * width + py;
+                        pic[index].x += inc.x;
+                        pic[index].y += inc.y;
+                        pic[index].z += inc.z;
+                        //cout << "index:" << index << "  inc.x:" << inc.x << "  inc.y:" << inc.y << "  inc.z:" << inc.z << endl;
                         mtx.unlock();
                     }
                 }
@@ -392,18 +401,29 @@ namespace LYPathTracer
         if (l >= r) {
             return;
         }
-        int mid = (l + r) / 2;
-        switch (dim) {
-        case 0:
-            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());
-            //break;
-        case 1:
-            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<1>());
-            //break;
-        case 2:
-            nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<2>());
-            //break;
-        }
+        int mid = (l + r) >> 1;
+        std::nth_element(list.begin() + l, list.begin() + mid, list.begin() + r,
+            [&dim](const ViewPoint& l, const ViewPoint& r) {
+                switch (dim) {
+                case 0:
+                    return l.pos.x < r.pos.x;
+                case 1:
+                    return l.pos.y < r.pos.y;
+                case 2:
+                    return l.pos.z < r.pos.z;
+                }
+            });
+        //switch (dim) {
+        //case 0:
+        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());
+        //    //break;
+        //case 1:
+        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<1>());
+        //    //break;
+        //case 2:
+        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<2>());
+        //    //break;
+        //}
 
         node = new KdTreeNode();
         node->viewpoint = list[mid];
