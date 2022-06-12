@@ -19,19 +19,6 @@ namespace LYPathTracer
     void LYPathTracerRenderer::renderTask(RGBA* pixels, int width, int height, int off, int step) {
         for(int i=off; i<height; i+=step) {
             for (int j=0; j<width; j++) {
-                //Vec3 color{0, 0, 0};
-                //for (int k=0; k < samples; k++) {
-                //    auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
-                //    float rx = r.x;
-                //    float ry = r.y;
-                //    float x = (float(j)+rx)/float(width);
-                //    float y = (float(i)+ry)/float(height);
-                //    auto ray = camera.shoot(x, y);
-                //    color += trace(ray, 0, false);
-                //}
-                //color /= samples;
-                //color = gamma(color);
-                //pixels[(height-i-1)*width+j] = {color, 1};
                 auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
                 float rx = r.x;
                 float ry = r.y;
@@ -39,6 +26,7 @@ namespace LYPathTracer
                 float y = (float(i)+ry)/float(height);
                 auto ray = camera.shoot(x, y);
                 rayTracing(ray, 0, energy, i, j);
+                sampleCount[i * width + j]++;
             }
         }
     }
@@ -47,17 +35,23 @@ namespace LYPathTracer
         // not really understand ,directly copy, should be updated!!
         for (int i = off; i < photonNum; i += step) {
             auto r1 = defaultSamplerInstance<UniformInSquare>().sample2d();
-            auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
-            Vec3 norm{ 0,0,-1 };
+            //auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
+            /*Vec3 norm{ 0,0,-1 };
             Onb onb{ norm };
             Vec3 rDir = glm::normalize(onb.local(r2));
+            rDir = onb.un_local(rDir, norm);*/
+            double theta = rand() * 1.0 / RAND_MAX * PI * 2;
+            double phi = rand() * 1.0 / RAND_MAX * PI * 2 - PI;
+            Vec3 rDir = { cos(phi) * sin(theta), cos(phi) * cos(theta), sin(phi) };
+            //Vec3 rDir = r2;
+            //rDir.z = -rDir.z;
             Vec3 rPos = scene.areaLightBuffer.begin()->position;
             rPos.x = rPos.x - 60.f + r1.x * 60.f;
             rPos.y = rPos.y - 60.f + r1.y * 60.f;
             Vec3 color = scene.areaLightBuffer.begin()->radiance;
             //cout << "x:" << color.x << "y:" << color.y << "z:" << color.z << endl;
             Ray ray = Ray(rPos, rDir);
-            photonTracing(ray, color, 0);
+            photonTracing(ray, color, 0, 0);
         }
     }
 
@@ -114,12 +108,12 @@ namespace LYPathTracer
                     Vec3 c = gamma(pic[i * width + j]);
                     Vec4 ori = pixels[(height - 1 - i) * width + j];
                     c = { c.x + ori.x,c.y + ori.y,c.z + ori.z };
-                    pixels[(height - 1 - i) * width + j] = { c,1 };
+                    c *= (1.0 / sampleCount[(height - 1 - i) * width + j]);
+                    pixels[(height - 1 - i) * width + j] = { c ,1 };
                 }
             }
 
         }
- 
         getServer().logger.log("Done...");
         return {pixels, width, height};
     }
@@ -318,13 +312,19 @@ namespace LYPathTracer
             //        ->shade_another(r, hitObject->hitPoint, hitObject->normal, 1.5);
             //}
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            /*if (abs(hitObject->normal.x) == 1.f) {
+                cout << "hello" << endl;
+            }*/
             mtx.lock();
             viewPoints.push_back(ViewPoint(hitObject->hitPoint,    
                 hitObject->normal,       
                 scattered.attenuation,  // color
-                lambda * scattered.pdf,    // strength
+                lambda * glm::dot(hitObject->normal, scattered.ray.direction)/scattered.pdf,    // strength
                 x, y));
             mtx.unlock();
+            float n_dot_in = glm::dot(hitObject->normal, scattered.ray.direction);
+            float pdf = scattered.pdf;
+            rayTracing(scattered.ray, currDepth + 1, lambda*pdf, x, y);
         }
         else if (hitLight->t != FLOAT_INF) {
             mtx.lock();
@@ -338,7 +338,7 @@ namespace LYPathTracer
         }
     }
 
-    void LYPathTracerRenderer::photonTracing(const Ray& r, Vec3 rColor, int currDepth) {
+    void LYPathTracerRenderer::photonTracing(const Ray& r, Vec3 rColor, int currDepth,int diffCount) {
         if (currDepth >= depth) {
             return;
         }
@@ -347,19 +347,23 @@ namespace LYPathTracer
         if (hitObject && hitObject->t < hitLight->t) {
             auto mtlHandle = hitObject->material;
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            /*if (abs(hitObject->normal.x) == 1.f) {
+                cout << "hello" << endl;
+            }*/
             if (1) {
                 // Diffuse reflection
                 vector<ViewPoint*> res;
                 findTree(root, res, hitObject->hitPoint, findR);
                 for (auto &p:res) {
-                    if (glm::dot(hitObject->normal, r.direction) > 1e-3) {
+                    //float dot_res = hitObject->normal.x * r.direction.x + hitObject->normal.y * r.direction.y + hitObject->normal.z * r.direction.z;
+                    if (glm::dot(hitObject->normal, r.direction)> 1e-3 /*dot_res<-(1e-7)1*/) {
                         float dis = glm::distance(p->pos, hitObject->hitPoint);
                         float t = (findR - dis) / findR;
                         Vec3 inc = { rColor.x * p->color.x,rColor.y * p->color.y ,rColor.z * p->color.z };
                         //Vec3 inc = rColor * p->color;
                         //cout << p->color.x << "       " << p->color.y << "       " << p->color.z << endl;
                         //cout << "t:" << t << "str:" << p->strength << endl;
-                        float factor = t * t * lightStrength * p->strength;
+                        float factor = t * t * (1.0 / (diffCount + 1)) * p->strength;
                         inc *= factor;
                         //cout << "lightStrength" << lightStrength << endl;
                         //cout << inc.x << "       " << inc.y << "       " << inc.z << endl;
@@ -374,7 +378,7 @@ namespace LYPathTracer
                         mtx.unlock();
                     }
                 }
-                photonTracing(scattered.ray, scattered.attenuation * rColor, currDepth + 1);
+                photonTracing(scattered.ray, scattered.attenuation * rColor, currDepth + 1, diffCount + 1);
             }
             else {
                 //refraction?
@@ -402,7 +406,7 @@ namespace LYPathTracer
             return;
         }
         int mid = (l + r) >> 1;
-        std::nth_element(list.begin() + l, list.begin() + mid, list.begin() + r,
+        nth_element(list.begin() + l, list.begin() + mid, list.begin() + r,
             [&dim](const ViewPoint& l, const ViewPoint& r) {
                 switch (dim) {
                 case 0:
@@ -413,17 +417,6 @@ namespace LYPathTracer
                     return l.pos.z < r.pos.z;
                 }
             });
-        //switch (dim) {
-        //case 0:
-        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<0>());
-        //    //break;
-        //case 1:
-        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<1>());
-        //    //break;
-        //case 2:
-        //    nth_element(list.begin() + l, list.begin() + mid, list.begin() + r, ViewPointCompare<2>());
-        //    //break;
-        //}
 
         node = new KdTreeNode();
         node->viewpoint = list[mid];
@@ -452,7 +445,6 @@ namespace LYPathTracer
     }
     
     void LYPathTracerRenderer::findTree(KdTreeNode* node, vector<ViewPoint*>& result, const Vec3& pos, double r) {
-        // not add max nearest num!
         double dx, dy, dz;
         if (pos.x <= node->bdmax.x && pos.x >= node->bdmin.x) {
             dx = 0;
@@ -485,5 +477,85 @@ namespace LYPathTracer
             findTree(node->right, result, pos, r);
         }
 
+    }
+
+    int LYPathTracerRenderer::calMedian(int start, int end) {
+        int num = end - start + 1;
+        int as = 1;
+        int b = 2;
+        while (as < num) {
+            as += b;
+            b *= 2;
+        }
+        if (as == num) {
+            return start + num / 2;
+        }
+        b /= 2;
+        if (as - b / 2 < num) {
+            return start + as / 2;
+        }
+        else {
+            return start + as / 2 - (as - b / 2 - num);
+        }
+    }
+
+    float LYPathTracerRenderer::getPointPos(int index, int dim) {
+        switch (dim) {
+        case 0:
+            return photons[index].pos.x;
+        case 1:
+            return photons[index].pos.y;
+        case 2:
+            return photons[index].pos.z;
+        default:
+            return -1;
+        }
+    }
+
+    float LYPathTracerRenderer::vec3Dim(Vec3 v, int dim) {
+        switch (dim) {
+        case 0:
+            return v.x;
+        case 1:
+            return v.y;
+        case 2:
+            return v.z;
+        default:
+            return -1;
+        }
+    }
+
+    void LYPathTracerRenderer::medianSplit(ViewPoint* temp, int start, int end, int median, int dim) {
+        int l = start, r = end;
+        while (l < r) {
+            float val = vec3Dim(photons[r].pos, dim);
+            int i = l - 1, j = r;
+            while (true) {
+                while (vec3Dim(temp[++i].pos, dim) < val);
+                while (vec3Dim(temp[--j].pos, dim) > val && j > l);
+                if (i >= j)break;
+                swap(photons[i], photons[j]);
+            }
+            swap(photons[i], photons[r]);
+            if (i >= median)r = i - 1;
+            if (i <= median)l = i + 1;
+        }
+    }
+
+    void LYPathTracerRenderer::balance() {
+        ViewPoint* temp = new ViewPoint[photonNum + 1];
+        for (int i = 1; i <= photonNum; i++) {
+            temp[i] = photons[i];
+        }
+    }
+
+    void LYPathTracerRenderer::balanceSegment(ViewPoint* temp, int index, int start, int end) {
+        if (start == end) {
+            photons[index] = temp[start];
+            return;
+        }
+        int median = calMedian(start, end);
+        int dim = 2;
+        //if()
     }
 }

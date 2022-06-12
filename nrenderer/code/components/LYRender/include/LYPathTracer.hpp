@@ -58,6 +58,9 @@ namespace LYPathTracer
         float photonR = 4;
         float findR = 3.f;  // find near photon r(?
 
+        // balance kdtree
+        ViewPoint* photons;
+
     public:
         LYPathTracerRenderer(SharedScene spScene)
             : spScene               (spScene)
@@ -101,25 +104,18 @@ namespace LYPathTracer
         tuple<HitRecord, Vec3> closestHitLightpm(const Ray& r);
         Vec3 getMax(const Vec3& v1, const Vec3& v2);
         Vec3 getMin(const Vec3& v1, const Vec3& v2);
-        void photonTracing(const Ray& r, Vec3 rColor, int currDepth);
+        void photonTracing(const Ray& r, Vec3 rColor, int currDepth, int diffCount);
         void buildTree(KdTreeNode*& node, vector<ViewPoint>& list, int l = -1, int r = -1, int dim = 0);
         void releaseTree(KdTreeNode* &node);
         void findTree(KdTreeNode* node, vector<ViewPoint*>& result, const Vec3& pos, double r);
 
-        template<int dim>
-        class ViewPointCompare {
-        public:
-            bool operator()(const ViewPoint& p1, const ViewPoint& p2) {
-                switch (dim) {
-                case 0:
-                    return p1.pos.x < p2.pos.x;
-                case 1:
-                    return p1.pos.y < p2.pos.y;
-                case 2:
-                    return p1.pos.z < p2.pos.z;
-                }
-            }
-        };
+        // balance kdTree
+        int calMedian(int start, int end);
+        float getPointPos(int index, int dim);
+        void medianSplit(ViewPoint* temp, int start, int end, int median, int dim);
+        float vec3Dim(Vec3 v, int dim);
+        void balance();
+        void balanceSegment(ViewPoint* temp, int index, int start, int end);
     };
 }
 
