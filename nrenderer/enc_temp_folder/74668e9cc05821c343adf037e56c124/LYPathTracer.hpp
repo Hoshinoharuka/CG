@@ -88,7 +88,7 @@ namespace LYPathTracer
         void release(const RenderResult& r);
 
     private:
-        void rayTask(RGBA* pixels, int width, int height, int off, int step);
+        void renderTask(RGBA* pixels, int width, int height, int off, int step);
         void photonTask(RGBA* pixels, int width, int height, int off, int step);
 
         RGB gamma(const RGB& rgb);

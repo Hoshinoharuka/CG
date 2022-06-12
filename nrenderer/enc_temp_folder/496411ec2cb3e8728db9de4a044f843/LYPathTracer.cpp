@@ -16,7 +16,7 @@ namespace LYPathTracer
         return glm::sqrt(rgb);
     }
 
-    void LYPathTracerRenderer::rayTask(RGBA* pixels, int width, int height, int off, int step) {
+    void LYPathTracerRenderer::renderTask(RGBA* pixels, int width, int height, int off, int step) {
         for(int i=off; i<height; i+=step) {
             for (int j=0; j<width; j++) {
                 auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
@@ -32,11 +32,19 @@ namespace LYPathTracer
     }
 
     void LYPathTracerRenderer::photonTask(RGBA* pixels, int width, int height, int off, int step) {
+        // not really understand ,directly copy, should be updated!!
         for (int i = off; i < photonNum; i += step) {
             auto r1 = defaultSamplerInstance<UniformInSquare>().sample2d();
+            //auto r2 = defaultSamplerInstance<HemiSphere>().sample3d();
+            /*Vec3 norm{ 0,0,-1 };
+            Onb onb{ norm };
+            Vec3 rDir = glm::normalize(onb.local(r2));
+            rDir = onb.un_local(rDir, norm);*/
             double theta = rand() * 1.0 / RAND_MAX * PI * 2;
             double phi = rand() * 1.0 / RAND_MAX * PI * 2 - PI;
             Vec3 rDir = { cos(phi) * sin(theta), cos(phi) * cos(theta), sin(phi) };
+            //Vec3 rDir = r2;
+            //rDir.z = -rDir.z;
             Vec3 rPos = scene.areaLightBuffer.begin()->position;
             rPos.x = rPos.x - 60.f + r1.x * 60.f;
             rPos.y = rPos.y - 60.f + r1.y * 60.f;
@@ -72,7 +80,7 @@ namespace LYPathTracer
             }
             thread* t = new thread[taskNums];
             for (int i = 0; i < taskNums; i++) {
-                t[i] = thread(&LYPathTracerRenderer::rayTask,
+                t[i] = thread(&LYPathTracerRenderer::renderTask,
                     this, pixels, width, height, i, taskNums);
             }
             for (int i = 0; i < taskNums; i++) {
@@ -405,7 +413,7 @@ namespace LYPathTracer
                         //cout << p->color.x << "       " << p->color.y << "       " << p->color.z << endl;
                         //cout << "t:" << t << "str:" << p->strength << endl;
                         float factor = t * t * (1.0 / (0 + 1)) * p->strength;
-                        inc *= (factor*0.5);   // change brightness
+                        inc *= (factor*0.5);
                         //cout << "lightStrength" << lightStrength << endl;
                         //cout << inc.x << "       " << inc.y << "       " << inc.z << endl;
                         int px = p->x;
