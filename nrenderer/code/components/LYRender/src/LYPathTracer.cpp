@@ -315,7 +315,7 @@ namespace LYPathTracer
                 //mtx.unlock();
                 //float n_dot_in = glm::dot(in ? -hitObject->normal : hitObject->normal, scattered.ray.direction);
                 float pdf = scattered.pdf;
-                rayTracing(scattered.ray, currDepth+1, lambda*0.5, x, y, in);
+                rayTracing(scattered.ray, currDepth+1, lambda*F, x, y, in);
                 if (F == 1.f) {
                     // full reflect
                     return;
@@ -338,10 +338,8 @@ namespace LYPathTracer
                     //mtx.unlock();
                     //float fra_n_dot_in = glm::dot(in ? hitObject->normal : -hitObject->normal, refract.ray.direction);
                     float fra_pdf = refract.pdf;
-                    rayTracing(refract.ray, currDepth+1, lambda*0.9, x, y, in ? false : true);
-                    //photonTracing(fractRay, refract.attenuation * rColor * (1 - F) * 0.05f, currDepth + 1, diffCount + 1, in ? false : true);
+                    rayTracing(refract.ray, currDepth+1, lambda*(1-F), x, y, in ? false : true);
                     return;
-                    //return 0.5f * result1 + 0.5f * result2;
                 }
             }
             if (dynamic_pointer_cast<Dirac>(shaderPrograms[mtlHandle.index()])) {
@@ -396,7 +394,7 @@ namespace LYPathTracer
                 findTree(root, res, hitObject->hitPoint, findR);
                 for (auto& p : res) {
                     //float dot_res = hitObject->normal.x * r.direction.x + hitObject->normal.y * r.direction.y + hitObject->normal.z * r.direction.z;
-                    if (abs(glm::dot(in ? hitObject->normal : -hitObject->normal, r.direction)) > 1e-3 /*dot_res<-(1e-7)1*/) {
+                    if (abs(glm::dot(in ? hitObject->normal : -hitObject->normal, r.direction)) > 1e-3 ) {
                         float dis = glm::distance(p->pos, hitObject->hitPoint);
                         float t = (findR - dis) / findR;
                         Vec3 inc = { rColor.x * p->color.x,rColor.y * p->color.y ,rColor.z * p->color.z };
@@ -438,7 +436,6 @@ namespace LYPathTracer
                     photonTracing(fractRay, refract.attenuation*rColor*(1-F) , currDepth+1, diffCount+1, in ? false : true);
                     
                     return;
-                    //return 0.5f * result1 + 0.5f * result2;
                 }
             }
             auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
@@ -450,7 +447,7 @@ namespace LYPathTracer
             findTree(root, res, hitObject->hitPoint, findR);
             for (auto &p:res) {
                 //float dot_res = hitObject->normal.x * r.direction.x + hitObject->normal.y * r.direction.y + hitObject->normal.z * r.direction.z;
-                if (glm::dot(hitObject->normal, r.direction)> 1e-3 /*dot_res<-(1e-7)1*/) {
+                if (abs(glm::dot(hitObject->normal, r.direction))> 1e-3) {
                     float dis = glm::distance(p->pos, hitObject->hitPoint);
                     float t = (findR - dis) / findR;
                     Vec3 inc = { rColor.x * p->color.x,rColor.y * p->color.y ,rColor.z * p->color.z };
@@ -458,7 +455,7 @@ namespace LYPathTracer
                     //cout << p->color.x << "       " << p->color.y << "       " << p->color.z << endl;
                     //cout << "t:" << t << "str:" << p->strength << endl;
                     float factor = t * t * (1.0 / (diffCount + 1)) * p->strength;
-                    inc *= factor;
+                    inc *= (factor * 0.0005);
                     //cout << "lightStrength" << lightStrength << endl;
                     //cout << inc.x << "       " << inc.y << "       " << inc.z << endl;
                     int px = p->x;
