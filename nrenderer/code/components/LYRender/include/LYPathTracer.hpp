@@ -55,8 +55,8 @@ namespace LYPathTracer
         int round = 10;
         double energy;
         double lightStrength;
-        float photonR = 3;
-        float findR = 2.f;
+        float photonR = 4;
+        float findR = 3.f;
 
 
     public:

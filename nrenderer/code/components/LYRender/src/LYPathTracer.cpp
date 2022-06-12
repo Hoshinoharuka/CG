@@ -94,7 +94,6 @@ namespace LYPathTracer
             energy /= 0.9f;
             findR *= 0.9f;
             releaseTree(root);
-            // not really understand but copy
             for (int i = 0; i < height; i++) {
                 for (int j = 0; j < width; j++) {
                     Vec3 c = gamma(pic[i * width + j]);
@@ -349,7 +348,7 @@ namespace LYPathTracer
                 auto scattered = (dynamic_pointer_cast<Dirac>(shaderPrograms[mtlHandle.index()]))
                     ->shade(r, hitObject->hitPoint, in ? -hitObject->normal : hitObject->normal);
                 float pdf = scattered.pdf;
-                rayTracing(scattered.ray, currDepth+1, lambda, x, y, in);
+                rayTracing(scattered.ray, currDepth+1, lambda*pdf, x, y, in);
                 return;
             }
 
@@ -366,7 +365,7 @@ namespace LYPathTracer
             mtx.unlock();
             float n_dot_in = glm::dot(hitObject->normal, scattered.ray.direction);
             float pdf = scattered.pdf;
-            rayTracing(scattered.ray, depth - 1, lambda, x, y, in);
+            rayTracing(scattered.ray, currDepth+2, lambda*pdf, x, y, in);
         }
         else if (hitLight->t != FLOAT_INF) {
             mtx.lock();
@@ -405,7 +404,7 @@ namespace LYPathTracer
                         //cout << p->color.x << "       " << p->color.y << "       " << p->color.z << endl;
                         //cout << "t:" << t << "str:" << p->strength << endl;
                         float factor = t * t * (1.0 / (0 + 1)) * p->strength;
-                        inc *= (factor*0.5);   // change brightness
+                        inc *= (factor*0.8);   // change brightness
                         //cout << "lightStrength" << lightStrength << endl;
                         //cout << inc.x << "       " << inc.y << "       " << inc.z << endl;
                         int px = p->x;
